@@ -1,0 +1,3 @@
+To generate data, start by accessing the "Datas" section on the Django server. Look for the "Add data" option located at the top right-hand corner. In this section, you can input the desired configuration of your data, including the "Desired size," the current size, and upload your sample data. Once you have entered the necessary details, click on the "SAVE" button.
+
+Now, return to the main page where you will find the status of your data. To proceed, select your data by clicking on the small square next to it. Then, navigate to the "Action" tab and choose the "convert data" option. Finally, click on the "go" button to initiate the data generation process.
