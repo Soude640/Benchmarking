@@ -1,5 +1,8 @@
 
 
+
+
+
 import findspark
 findspark.init()
 from pyspark.sql import SparkSession
@@ -26,43 +29,12 @@ train_df = splits[0]
 test_df = splits[1]
 train_df.count(), test_df.count(), i_v_iris_df.count()
 
-import xgboost as xgb
-
-clf = xgb.XGBClassifier(
-    n_estimators=5,
-    max_depth=9,
-    learning_rate=0.05,
-    subsample=0.9,
-    colsample_bytree=0.9,
-    missing=-999,
-    random_state=2000
-)
-
-from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
-
+from pyspark.ml.classification import MultilayerPerceptronClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
+layers = [4,5,5,3]
 
-
-evaluator = MulticlassClassificationEvaluator(metricName="accuracy")
-
-crossval = CrossValidator(estimator=xgb,
-                          estimatorParamMaps=[10,5,20],
-                          evaluator=evaluator,
-                          numFolds=5)
-
-from pyspark.ml import Pipeline
-
-
-
-# Build the pipeline
-pipeline = Pipeline(stages=[xgb])
-
-model = pipeline.fit(train_df)
-
-
-
-xgboost_model_doc = xgb(featuresCol="features", labelCol="label")
+mlp = MultilayerPerceptronClassifier(layers = layers, seed = 1)
 
 mlp_model = mlp.fit(train_df)
 
@@ -72,7 +44,4 @@ pred_df.select('Id','features','label','rawPrediction','probability','prediction
 evaluator = MulticlassClassificationEvaluator(labelCol = 'label', predictionCol = 'prediction', metricName = 'accuracy')
 mlpacc = evaluator.evaluate(pred_df)
 mlpacc
-
-
-
 
