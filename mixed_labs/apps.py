@@ -1,0 +1,15 @@
+certifi==2022.6.15
+charset-normalizer==2.0.12
+docker==5.0.3
+idna==3.3
+numpy==1.19.5
+pandas==1.1.5
+pkg-resources==0.0.0
+prometheus-client==0.8.0
+py4j==0.10.9.5
+python-dateutil==2.8.2
+pytz==2022.2.1
+requests==2.27.1
+six==1.16.0
+urllib3==1.26.10
+websocket-client==1.3.1
