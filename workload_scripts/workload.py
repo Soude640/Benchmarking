@@ -118,7 +118,7 @@ async def main():
     print("wait for running spark")
     wait_for_running_server()
     scale_workers(1, workers_number[0], servers_count)
-    print("start attack")
+    print("start workload")
     print("users_count", users_count)
     print("workers_number", workers_number)
     print("data_files", data_files)
