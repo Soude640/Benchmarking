@@ -154,7 +154,7 @@ async def main():
     is_need_sleep = False
     print("wait for running spark")
     time.sleep(60)
-    print("start attack")
+    print("start workload")
     servers_count = int(config["server_config"]["server_counts"])
     spark_worker_counts = int(config["server_config"]["spark_worker_counts"])
     scale_workers(1, spark_worker_counts, servers_count)
