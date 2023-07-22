@@ -1,0 +1,176 @@
+version: '3.8'
+
+volumes:
+  shared-workspace: { }
+  prometheus_data: { }
+  grafana_data: { }
+
+
+services:
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+      - target: 7077
+        published: 7077
+        mode: host
+      - target: 6066
+        published: 6066
+        mode: host
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    networks:
+      - spark
+    volumes:
+      - shared-workspace:/opt/workspace
+      - ${MEDIA_ROOT}:/opt/workspace/data
+
+  spark-worker:
+    image: mortezarastegarrad/spark-worker:v3.3.0
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=${WORKER_CPU_COUNTS}
+      - SPARK_WORKER_MEMORY=${WORKER_MEMORY_AMOUNTS}
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    networks:
+      - spark
+    ports:
+      - target: 8081
+        published: 8081
+        mode: host
+    volumes:
+      - shared-workspace:/opt/workspace
+      - ${MEDIA_ROOT}:/opt/workspace/data
+    depends_on:
+      - spark-master
+
+  backend:
+    image: mortezarastegarrad/backend:v5
+    environment:
+      - WORKER_CPU_COUNTS=${WORKER_CPU_COUNTS}
+      - WORKER_MEMORY_AMOUNTS=${WORKER_MEMORY_AMOUNTS}
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    ports:
+      - target: 5001
+        published: 5001
+        mode: host
+    networks:
+      - spark
+    volumes:
+      - ./src:/src
+      - shared-workspace:/opt/workspace
+      - ${MEDIA_ROOT}:/opt/workspace/data
+    depends_on:
+      - spark-master
+      - spark-worker
+
+  prometheus:
+    image: prom/prometheus:v2.17.1
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - target: 9090
+        published: 9090
+        mode: host
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  masternodeexporter:
+    image: prom/node-exporter:v0.18.1
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - target: 9100
+        published: 9101
+        mode: host
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  mastercadvisor:
+    image: gcr.io/google-containers/cadvisor:v0.34.0
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
+    ports:
+      - target: 8080
+        published: 8086
+        mode: host
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  grafana:
+    image: grafana/grafana:6.7.2
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - target: 3000
+        published: 3000
+        mode: host
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  pushgateway:
+    image: prom/pushgateway:v1.2.0
+    ports:
+      - target: 9091
+        published: 9091
+        mode: host
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+  jupyterlab:
+    image: jupyter/pyspark-notebook:notebook-6.5.4
+    command: start-notebook.sh --NotebookApp.token='admin'
+    ports:
+      - target: 8888
+        published: 8888
+        mode: host
+      - target: 4040
+        published: 4040
+        mode: host
+    networks:
+      - spark
+    volumes:
+      - shared-workspace:/opt/workspace
+      - ${MEDIA_ROOT}:/opt/workspace/data
+
+networks:
+  spark:
