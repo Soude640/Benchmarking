@@ -30,7 +30,7 @@ services:
       - ${MEDIA_ROOT}:/opt/workspace/data
 
   spark-worker:
-    image: mortezarastegarrad/spark-worker:v3.3.0
+    image: Soude640/spark-worker:v3.3.0
     environment:
       - SPARK_MASTER=spark://spark-master:7077
       - SPARK_WORKER_CORES=${WORKER_CPU_COUNTS}
@@ -50,7 +50,7 @@ services:
       - spark-master
 
   backend:
-    image: mortezarastegarrad/backend:v5
+    image: Soude640/backend:v5
     environment:
       - WORKER_CPU_COUNTS=${WORKER_CPU_COUNTS}
       - WORKER_MEMORY_AMOUNTS=${WORKER_MEMORY_AMOUNTS}
