@@ -1,7 +1,235 @@
-version: "3"
+version: '3.8'
+
+volumes:
+  shared-workspace: { }
+  prometheus_data: { }
+  grafana_data: { }
+
 
 services:
-  redis:
-    image: redis:5
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
     ports:
-      - 6379:6379
+      - "8080:8080"
+      - "7077:7077"
+      - "6066:6066"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    networks:
+      - spark
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    volumes:
+      - shared-workspace:/opt/workspace
+      - /mnt/data:/opt/workspace/data
+
+  spark-worker:
+    image: mortezarastegarrad/spark-worker:v3.3.0
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=${WORKER_CPU_COUNTS}
+      - SPARK_WORKER_MEMORY=${WORKER_MEMORY_AMOUNTS}
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    networks:
+      - spark
+    ports:
+      - "8081:8081"
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==worker
+      replicas: 0
+    volumes:
+      - shared-workspace:/opt/workspace
+      - /mnt/data:/opt/workspace/data
+
+  masterspark-worker:
+    image: Soude640/spark-worker:v3.3.0
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=${WORKER_CPU_COUNTS}
+      - SPARK_WORKER_MEMORY=${WORKER_MEMORY_AMOUNTS}
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    networks:
+      - spark
+    ports:
+      - "8082:8081"
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+      replicas: 1
+    volumes:
+      - shared-workspace:/opt/workspace
+      - /mnt/data:/opt/workspace/data
+
+  backend:
+    image: backend:v5
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    environment:
+      - WORKER_CPU_COUNTS=${WORKER_CPU_COUNTS}
+      - WORKER_MEMORY_AMOUNTS=${WORKER_MEMORY_AMOUNTS}
+      - PYSPARK_PYTHON=/usr/bin/python3.7
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.7
+    ports:
+      - 5001:5001
+    networks:
+      - spark
+    volumes:
+      - ./src:/src
+      - shared-workspace:/opt/workspace
+      - /mnt/data:/opt/workspace/data
+    depends_on:
+      - spark-master
+      - spark-worker
+
+  prometheus:
+    image: prom/prometheus:v2.17.1
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  nodeexporter:
+    image: prom/node-exporter:v0.18.1
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==worker
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  masternodeexporter:
+    image: prom/node-exporter:v0.18.1
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9101:9100"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  cadvisor:
+    image: gcr.io/google-containers/cadvisor:v0.34.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==worker
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
+    ports:
+      - "8085:8080"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  mastercadvisor:
+    image: gcr.io/google-containers/cadvisor:v0.34.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
+    ports:
+      - "8086:8080"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  grafana:
+    image: grafana/grafana:6.7.2
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==master
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+  pushgateway:
+    image: prom/pushgateway:v1.2.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role==worker
+    ports:
+      - "9091:9091"
+    networks:
+      - spark
+    labels:
+      org.label-schema.group: "monitoring"
+
+networks:
+  spark:
+    external: true
