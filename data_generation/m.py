@@ -37,36 +37,41 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
     df = pd.read_csv(input_path)
 
     while file_size_bytes < desired_size - 10000:
-        target_column = None
+        potential_target = None
+        max_unique_values = 0
         max_correlation = 0.0
         
-        # Iterate through columns to identify potential target candidates
+        # Iterate through columns to identify potential target variable
         for col in df.columns:
-            if col != target_column:
-                correlation = df[col].corr(df[target_column])
-                if abs(correlation) > max_correlation:
-                    target_column = col
-                    max_correlation = abs(correlation)
+            if col != potential_target:
+                data_type = df[col].dtype
+                unique_values = df[col].nunique()
+                correlation = df[col].corr(df[potential_target])
+                
+                if data_type == "object" and unique_values <= 10:
+                    if unique_values > max_unique_values:
+                        potential_target = col
+                        max_unique_values = unique_values
+                
+                elif data_type in [np.int32, np.int64, np.float64]:
+                    if abs(correlation) > max_correlation:
+                        potential_target = col
+                        max_correlation = abs(correlation)
         
-        if target_column is None:
+        if potential_target is None:
             raise Exception("No suitable target column found in the dataset")
 
-        # Prepare the data by selecting the target and feature columns
-        feature_columns = [col for col in df.columns if col != target_column]
-        data = pd.concat([df[feature_columns], df[target_column]], axis=1)
+        feature_columns = [col for col in df.columns if col != potential_target]
+        data = pd.concat([df[feature_columns], df[potential_target]], axis=1)
         
-        target_type = df[target_column].dtype
-        feature_types = df[feature_columns].dtypes
-
-        if target_type in [np.int32, np.int64, np.float64]:
-            # Use SmoteModel for int and float target values
-            model = SmoteModel()
-        else:
-            # Use RandomModel or WeightedRandomModel for categorical target values
+        target_type = df[potential_target].dtype
+        if target_type == "object":
             if label_encode:
                 model = RandomModel()
             else:
                 model = WeightedRandomModel()
+        else:
+            model = SmoteModel()
 
         model.train(data)
         result = model.new_population()
@@ -75,12 +80,13 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         df = pd.read_csv(output_path)
         file_size_bytes = getsize(output_path)
 
-        print(f'file size becomes {file_size_bytes}')
+        print(f'file size become {file_size_bytes}')
 
     sampling_file(output_path, output_path, file_size_bytes, desired_size)
 
 def main():
-    fix_size("input.csv", "output.csv", label_encode=True)
+    fix_size("input.csv", "output.csv", "5Mb", label_encode=True)
 
 if __name__ == '__main__':
     main()
+
