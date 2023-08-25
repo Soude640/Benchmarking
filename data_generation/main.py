@@ -47,10 +47,10 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         feature_types = df.iloc[:, :-1].dtype
                 
        if target_type=="object":
-            # Use SmoteModel for int and float target values
+            # Use SmoteModel for categorical values
             model = SmoteModel()
         else:
-            # Use RandomModel or WeightedRandomModel for categorical target values
+            # Use RandomModel or WeightedRandomModel for int and float target values
             if target_type in [np.int32, np.int64, np.float64]:
                 model = WeightedRandomModel()
             else:
