@@ -59,16 +59,34 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
                 encoders[feat] = le
                 df[feat] = le.transform(df[feat].astype(str))
 
-        model = RandomModel()
+    # Check the data types of target variable and features
+        target_type = df.iloc[:, -1].dtype
+        feature_types = df.iloc[:, :-1].dtypes
+
+        if target_type in [np.int32, np.int64, np.float64]:
+            # Use SmoteModel for int and float target values
+            model = SmoteModel()
+        else:
+            # Use RandomModel or WeightedRandomModel for categorical target values
+            if label_encode:
+                model = RandomModel()
+            else:
+                model = WeightedRandomModel()
 
         model.train(df)
         result = pd.concat([df, model.new_population()], ignore_index=True)
+
 
         if label_encode:
             for feat in obj_list:
                 le = encoders[feat]
                 result[feat] = le.inverse_transform(result[feat])
 
+
+        if getsize(output_path_random) < getsize(output_path_weighted):
+            result_final = result_random
+        else:
+            result_final = result_weighted
         result.to_csv(output_path, index=False)
         df = pd.read_csv(output_path)
         file_size_bytes = getsize(output_path)
