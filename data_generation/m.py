@@ -40,15 +40,18 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         potential_target = None
         max_unique_values = 0
         max_correlation = 0.0
+
+        # Calculate a dynamic threshold based on the proportion of unique values
+        dynamic_threshold = len(df) * 0.1  # Adjust the multiplier as needed
         
-        # Iterate through columns to identify potential target variable
+        # Iterate through columns to identify potential target candidates
         for col in df.columns:
             if col != potential_target:
                 data_type = df[col].dtype
                 unique_values = df[col].nunique()
                 correlation = df[col].corr(df[potential_target])
                 
-                if data_type == "object" and unique_values <= 10:
+                if data_type == "object" and unique_values <= dynamic_threshold:
                     if unique_values > max_unique_values:
                         potential_target = col
                         max_unique_values = unique_values
@@ -89,4 +92,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
