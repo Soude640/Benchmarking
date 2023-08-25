@@ -41,8 +41,7 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         max_unique_values = 0
         max_correlation = 0.0
 
-        # Calculate a dynamic threshold based on the proportion of unique values
-        dynamic_threshold = len(df) * 0.1  # Adjust the multiplier as needed
+    
         
         target_type = df.iloc[:, -1].dtype
         feature_types = df.iloc[:, :-1].dtype
