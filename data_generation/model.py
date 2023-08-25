@@ -5,7 +5,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import train_test_split
+
 
 
 class AbstractModel(ABC):
@@ -103,8 +103,8 @@ class WeightedRandomModel(AbstractModel):
 
 class SmoteModel(AbstractModel):
     """
-    This model uses SMOTE oversampling method of imblearn.
-        only works on int and float data.
+    This model uses the SMOTE oversampling method of imblearn.
+       used for imbalanced classes in classification tasks.
     """
 
     def __init__(self):
@@ -135,18 +135,6 @@ class SmoteModel(AbstractModel):
         self.cols = list(df.columns)
 
     def _create_model(self):
-        self.model = SMOTE(random_state=42)
+        self.model = SMOTE(sampling_strategy='auto', random_state=42)
 
-    def _check_types(self, df):
-        for type_ in df.dtypes:
-            if type_ not in (np.int32, np.int64, np.float64):
-                raise RuntimeError(f"bad data type {type_}. only support int and float")
-
-    def _extract_x_y(self, df):
-        y = df.iloc[:, -1:]
-        x = df.iloc[:, :-1]
-        # split the dataset into training and testing sets
-        x_train, _, y_train, _ = train_test_split(
-            x, y, test_size=0.2, random_state=42)
-        self.X = x_train
-        self.Y = y_train
+   
