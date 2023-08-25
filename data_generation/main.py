@@ -69,7 +69,6 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         
         target_type = df[potential_target].dtype
         if target_type == "object":
-            if label_encode:
                 model = SmoteModel()
             else:
                 model = WeightedRandomModel()
