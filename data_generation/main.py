@@ -44,22 +44,19 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
         # Calculate a dynamic threshold based on the proportion of unique values
         dynamic_threshold = len(df) * 0.1  # Adjust the multiplier as needed
         
-        # Iterate through columns to identify potential target candidates
-        for col in df.columns:
-            if col != potential_target:
-                data_type = df[col].dtype
-                unique_values = df[col].nunique()
-                correlation = df[col].corr(df[potential_target])
+        target_type = df.iloc[:, -1].dtype
+        feature_types = df.iloc[:, :-1].dtype
                 
-                if data_type == "object" and unique_values <= dynamic_threshold:
-                    if unique_values > max_unique_values:
-                        potential_target = col
-                        max_unique_values = unique_values
-                
-                elif data_type in [np.int32, np.int64, np.float64]:
-                    if abs(correlation) > max_correlation:
-                        potential_target = col
-                        max_correlation = abs(correlation)
+       if target_type=="object":
+            # Use SmoteModel for int and float target values
+            model = SmoteModel()
+        else:
+            # Use RandomModel or WeightedRandomModel for categorical target values
+            if target_type in [np.int32, np.int64, np.float64]:
+                model = WeightedRandomModel()
+            else:
+                model = RandomModel()
+
         
         if potential_target is None:
             raise Exception("No suitable target column found in the dataset")
