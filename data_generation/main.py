@@ -1,9 +1,8 @@
 import re
 from os.path import getsize
-
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-
+import numpy as np
 from model import WeightedRandomModel, SmoteModel, RandomModel
 
 convert_map = {
@@ -13,7 +12,6 @@ convert_map = {
     "gi": 1024 * 1024 * 1024,
 }
 
-
 def convert_size_to_bytes(desired_size: str) -> float:
     split = re.split("(kb|Kb|KB|mb|Mb|MB|gi|Gi|GI|b|B)", desired_size)
     number, unit = float(split[0]), str(split[1]).lower()
@@ -22,7 +20,6 @@ def convert_size_to_bytes(desired_size: str) -> float:
         raise Exception(f"bad format desired size. {unit} not known")
 
     return number * convert_map[unit]
-
 
 def sampling_file(file_path: str, output_path: str, file_size: float, desired_size: float):
     df = pd.read_csv(file_path)
@@ -34,59 +31,54 @@ def sampling_file(file_path: str, output_path: str, file_size: float, desired_si
 
     sampled.to_csv(output_path, index=False)
 
-
 def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = False):
-    """
-    :param input_path:
-    :param output_path:
-    :param size:
-    :param label_encode: if true do not use smote model
-    :return:
-    """
-    # May raise OSError if file is inaccessible.
     file_size_bytes = getsize(input_path)
-
     desired_size = convert_size_to_bytes(size)
     df = pd.read_csv(input_path)
 
     while file_size_bytes < desired_size - 10000:
-        encoders = {}
-        obj_list = df.select_dtypes(include="object").columns
-        if label_encode:
-            for feat in obj_list:
-                le = LabelEncoder()
-                le.fit(df[feat])
-                encoders[feat] = le
-                df[feat] = le.transform(df[feat].astype(str))
+        potential_target = None
+        max_unique_values = 0
+        max_correlation = 0.0
 
-    # Check the data types of target variable and features
-        target_type = df.iloc[:, -1].dtype
-        feature_types = df.iloc[:, :-1].dtypes
+        # Calculate a dynamic threshold based on the proportion of unique values
+        dynamic_threshold = len(df) * 0.1  # Adjust the multiplier as needed
+        
+        # Iterate through columns to identify potential target candidates
+        for col in df.columns:
+            if col != potential_target:
+                data_type = df[col].dtype
+                unique_values = df[col].nunique()
+                correlation = df[col].corr(df[potential_target])
+                
+                if data_type == "object" and unique_values <= dynamic_threshold:
+                    if unique_values > max_unique_values:
+                        potential_target = col
+                        max_unique_values = unique_values
+                
+                elif data_type in [np.int32, np.int64, np.float64]:
+                    if abs(correlation) > max_correlation:
+                        potential_target = col
+                        max_correlation = abs(correlation)
+        
+        if potential_target is None:
+            raise Exception("No suitable target column found in the dataset")
 
-        if target_type in [np.int32, np.int64, np.float64]:
-            # Use SmoteModel for int and float target values
-            model = SmoteModel()
-        else:
-            # Use RandomModel or WeightedRandomModel for categorical target values
+        feature_columns = [col for col in df.columns if col != potential_target]
+        data = pd.concat([df[feature_columns], df[potential_target]], axis=1)
+        
+        target_type = df[potential_target].dtype
+        if target_type == "object":
             if label_encode:
-                model = RandomModel()
+                model = SmoteModel()
             else:
                 model = WeightedRandomModel()
-
-        model.train(df)
-        result = pd.concat([df, model.new_population()], ignore_index=True)
-
-
-        if label_encode:
-            for feat in obj_list:
-                le = encoders[feat]
-                result[feat] = le.inverse_transform(result[feat])
-
-
-        if getsize(output_path_random) < getsize(output_path_weighted):
-            result_final = result_random
         else:
-            result_final = result_weighted
+            model = RandomModel()
+
+        model.train(data)
+        result = model.new_population()
+
         result.to_csv(output_path, index=False)
         df = pd.read_csv(output_path)
         file_size_bytes = getsize(output_path)
@@ -95,10 +87,8 @@ def fix_size(input_path: str, output_path: str, size: str, label_encode: bool = 
 
     sampling_file(output_path, output_path, file_size_bytes, desired_size)
 
-
 def main():
-    fix_size("Iris.csv", "out.csv", "5Mb", label_encode=True)
-
+    fix_size("input.csv", "output.csv", "5Mb", label_encode=True)
 
 if __name__ == '__main__':
     main()
