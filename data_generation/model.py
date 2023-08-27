@@ -64,33 +64,28 @@ class RandomModel(AbstractModel):
 
 
 class WeightedRandomModel(AbstractModel):
-    """
-    This model generates each row by choosing a weighted random sample of all data in that column.
-    """
-
     def __init__(self, count: int = None):
-        super().__init__()
-        self.cols: List[str] = list()
+        self.cols = []
         self.count = count
         self.df = None
+        self.freq_weights = {}  # Store frequency-based weights for each column
 
     def train(self, df: pd.DataFrame):
-        super().train(df)
-
-        self.df: pd.DataFrame = df
+        self.df = df
         self._extract_cols(df)
         self._extract_count(df)
+        self._calculate_freq_weights(df)
 
     def new_population(self) -> pd.DataFrame:
-        super(WeightedRandomModel, self).new_population()
-
         result = []
-        for i in range(self.count):
+        for _ in range(self.count):
             row = []
-            for j in self.df:
-                row.append(list(self.df[j].sample(n=1))[0])
+            for col in self.cols:
+                sampled_value = random.choices(self.freq_weights[col]['values'],
+                                               weights=self.freq_weights[col]['weights'],
+                                               k=1)[0]
+                row.append(sampled_value)
             result.append(row)
-
         return pd.DataFrame(result, columns=self.cols)
 
     def _extract_cols(self, df: pd.DataFrame):
@@ -100,6 +95,16 @@ class WeightedRandomModel(AbstractModel):
         if self.count is None:
             self.count = df.shape[0]
 
+    def _calculate_freq_weights(self, df: pd.DataFrame):
+        for col in self.cols:
+            col_values = df[col]
+            col_counter = Counter(col_values)
+            total_values = len(col_values)
+            
+            values = list(col_counter.keys())
+            weights = [col_counter[value] / total_values for value in values]
+            
+            self.freq_weights[col] = {'values': values, 'weights': weights}
 
 class SmoteModel(AbstractModel):
     """
