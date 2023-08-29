@@ -1,6 +1,7 @@
 ##local development
 
 First, you need to pull these images:
+
 docker pull bde2020/spark-master:3.3.0-hadoop3.3   
 docker pull Soude640/spark-worker:v3.3.0
 docker pull Soude640/backend:v5
